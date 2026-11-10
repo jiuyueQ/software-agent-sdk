@@ -1,0 +1,25 @@
+name: ACP zero-usage regression validation
+on:
+  push:
+    branches: [ci/acp-zero-usage-20261110]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      LITELLM_LOCAL_MODEL_COST_MAP: 'True'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+        with:
+          python-version: '3.13'
+      - run: uv sync --frozen --dev
+      - run: uv run pre-commit run --files tests/sdk/agent/test_acp_agent.py
+      - run: uv run pytest tests/sdk/agent/test_acp_agent.py tests/sdk/llm/test_llm_metrics.py -q --timeout=60
+      - name: Exercise real ACP subprocess notifications
+        run: |
+          uv run python .pr/reproduce_acp_context_usage.py --expected-context 46000
+          uv run python .pr/reproduce_acp_context_usage.py --context-updates 46000 0 --expected-context 0
+          uv run python .pr/reproduce_acp_context_usage.py --context-updates 46000 0 12000 --expected-context 12000
